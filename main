@@ -1,0 +1,115 @@
+import pandas as pd
+pd.set_option('display.max_colwidth', 100)
+import numpy as np
+import urllib.parse
+import os
+
+def get_documentation(file):
+    #1 ouvrir le fichier et stocket le nom de ficher dans une variable
+    csv_name = file
+    file = pd.read_csv(csv_name, skiprows=1)
+    
+    #2 regrouper les données de post ou get (selon le cas) dans une colonne data
+    file["data"] = np.where((file["POST Data"].isnull() == False), file["POST Data"], file["Request URL"])
+    file["data"] = np.where((file["Event Type"] == "Navigation"), None, file["data"])
+
+    #3 iterer sur chacune des lignes pour extraire les données nécessaires
+    pagePath = []
+    for index, row in file.data.items():
+        if row == None:
+            pagePath.append("no event")
+        else:
+            temp_dict = {}
+            for el in row.split("&"):
+                temp_dict[el.split("=")[0]] = el.split("=")[1]
+            pagePath.append(temp_dict.get("dl"))
+
+    file["pagePath"] = pd.Series(data=pagePath)
+
+    #---------------------------------------------#
+
+    eventAction = []
+    for index, row in file.data.items():
+        if row == None:
+            eventAction.append("no event")
+        else:
+            temp_dict = {}
+            for el in row.split("&"):
+                temp_dict[el.split("=")[0]] = el.split("=")[1]
+            eventAction.append(temp_dict.get("ea"))
+
+    file["eventAction"] = pd.Series(data=eventAction)
+
+    #---------------------------------------------#
+
+    eventCategory = []
+    for index, row in file.data.items():
+        if row == None:
+            eventCategory.append("no event")
+        else:
+            temp_dict = {}
+            for el in row.split("&"):
+                temp_dict[el.split("=")[0]] = el.split("=")[1]
+            eventCategory.append(temp_dict.get("ec"))
+
+    file["eventCategory"] = pd.Series(data=eventCategory)
+
+    #---------------------------------------------#
+
+    eventLabel = []
+    for index, row in file.data.items():
+        if row == None:
+            eventLabel.append("no event")
+        else:
+            temp_dict = {}
+            for el in row.split("&"):
+                temp_dict[el.split("=")[0]] = el.split("=")[1]
+            eventLabel.append(temp_dict.get("el"))
+
+    file["eventLabel"] = pd.Series(data=eventLabel)
+
+    #---------------------------------------------#
+
+    #4 decoding html values
+    file["pagePath"] = [urllib.parse.unquote(url) if url != None else url for url in file.pagePath]
+    file["eventAction"] = [urllib.parse.unquote(url) if url != None else url for url in file.eventAction]
+    file["eventCategory"] = [urllib.parse.unquote(url) if url != None else url for url in file.eventCategory]
+    file["eventLabel"] = [urllib.parse.unquote(url) if url != None else url for url in file.eventLabel]
+
+    #5 réordonner les colonnes
+    file = file[['Event Type'
+                 , 'Provider'
+                 , 'Account'
+                 , 'pagePath'
+                 , 'eventAction'
+                 , 'eventCategory'
+                 , 'eventLabel'
+                 , 'Request ID'
+                 , 'Request URL'
+                 , 'POST Data'
+                 , 'Timestamp'
+                 , 'Notes'
+                 , 'data']]
+
+    #6 cleaner la colonne pagePath pour les lignes de navigations
+    file["pagePath"] = np.where((file["Event Type"] == "Navigation"), file["Request URL"], file["pagePath"])
+
+    #7 enlever les hits doubleclics et les events goal de média
+    file = file[file["Event Type"] != "dc"]
+    file = file[file["eventCategory"] != "goal"]
+
+
+    #8 nexport en csv
+    export_name = "clean_"+csv_name
+    file.to_csv(export_name, sep=",", index=False)
+    return
+
+# list files
+dir_list = os.listdir(os.path.abspath(os.getcwd()))
+
+# call the function
+for file in dir_list:
+    if (".csv" in file) & ("_clean" not in file):
+        get_documentation(file)
+    else:
+        pass
